@@ -108,9 +108,14 @@ impl Axes {
         PixelContext::new(cx).rectangle(ll.0, ll.1, width, -height);
         cx.stroke().unwrap();
 
-        cx.set_line_width(2.0);
+        cx.set_line_width(1.0);
         cx.set_source_rgb(1.0, 0.0, 0.0);
-        cx.rectangle(rect.x(), rect.y(), rect.width(), rect.height());
+        cx.rectangle(
+            (rect.x() - 0.5).round() + 0.5,
+            (rect.y() - 0.5).round() + 0.5,
+            rect.width().round(),
+            rect.height().round(),
+        );
         cx.stroke().unwrap();
     }
 }
@@ -121,19 +126,14 @@ pub mod demo {
     use std::{cell::RefCell, rc::Rc};
 
     pub fn main() -> gtk::glib::ExitCode {
-        let app = gtk::Application::builder()
-            .application_id("axis-demo")
-            .build();
+        let app = gtk::Application::builder().application_id("axis-demo").build();
 
         app.connect_activate(build_ui);
         app.run()
     }
 
     fn build_ui(app: &gtk::Application) {
-        let darea = gtk::DrawingArea::builder()
-            .content_height(700)
-            .content_width(1200)
-            .build();
+        let darea = gtk::DrawingArea::builder().content_height(100).content_width(200).build();
 
         let darea = Rc::new(RefCell::new(darea));
 
@@ -147,6 +147,8 @@ pub mod demo {
         })));
 
         darea.borrow().set_draw_func(move |_da, cx, width, height| {
+            cx.set_source_rgb(1.0, 1.0, 1.0);
+            cx.paint().unwrap();
             axes.borrow_mut().draw(
                 cx,
                 Rectangle::new(

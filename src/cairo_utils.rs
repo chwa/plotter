@@ -17,12 +17,13 @@ pub fn text_aligned(
     fontsize: f64,
     spacing: f64,
     vertical: bool,
+    bold: bool,
 ) {
     cx.set_font_size(fontsize);
     cx.set_source_rgb(0.0, 0.0, 0.0);
     cx.select_font_face(
         // "Open Sans", //"Roboto Condensed",
-        "Roboto Light",
+        if bold { "Roboto" } else { "Roboto Light" },
         gtk::cairo::FontSlant::Normal,
         gtk::cairo::FontWeight::Normal,
     );
@@ -77,15 +78,13 @@ impl<'a> PixelContext<'a> {
     }
 
     pub fn move_to(&self, x: f64, y: f64) {
-        self.cx
-            .move_to((x - 0.5).round() + 0.5, (y - 0.5).round() + 0.5)
+        self.cx.move_to((x - 0.5).round() + 0.5, (y - 0.5).round() + 0.5)
     }
     pub fn rel_move_to(&self, x: f64, y: f64) {
         self.cx.rel_move_to(x.round(), y.round())
     }
     pub fn line_to(&self, x: f64, y: f64) {
-        self.cx
-            .line_to((x - 0.5).round() + 0.5, (y - 0.5).round() + 0.5)
+        self.cx.line_to((x - 0.5).round() + 0.5, (y - 0.5).round() + 0.5)
     }
     pub fn rel_line_to(&self, x: f64, y: f64) {
         self.cx.rel_line_to(x.round(), y.round())

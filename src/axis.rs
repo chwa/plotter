@@ -34,7 +34,7 @@ impl Axis {
             direction: AxisDirection::Bottom,
             axis_type: AxisType::Lin,
             range,
-            label: Some(String::from("linear1")),
+            label: Some(String::from("Horizontal axis [units]")),
             locator: Box::new(LinLocator::new(0.025)),
         }
     }
@@ -44,7 +44,7 @@ impl Axis {
             direction: AxisDirection::Left,
             axis_type: AxisType::Lin,
             range,
-            label: Some(String::from("vertical linear")),
+            label: Some(String::from("Vertical axis [units]")),
             locator: Box::new(LinLocator::new(0.025)),
         }
     }
@@ -86,6 +86,7 @@ impl Axis {
                         15.0,
                         50.0,
                         true,
+                        true,
                     );
                 }
                 AxisDirection::Right => {}
@@ -99,6 +100,7 @@ impl Axis {
                         15.0,
                         50.0,
                         false,
+                        true,
                     );
                 }
                 AxisDirection::Top => {}
@@ -141,6 +143,7 @@ impl Axis {
                             12.0,
                             5.0,
                             false,
+                            false,
                         );
                     }
                 }
@@ -155,6 +158,7 @@ impl Axis {
                             TextPos::Right,
                             12.0,
                             5.0,
+                            false,
                             false,
                         );
                     }
@@ -171,6 +175,7 @@ impl Axis {
                             12.0,
                             5.0,
                             false,
+                            false,
                         );
                     }
                 }
@@ -185,6 +190,7 @@ impl Axis {
                             TextPos::Bottom,
                             12.0,
                             5.0,
+                            false,
                             false,
                         );
                     }
