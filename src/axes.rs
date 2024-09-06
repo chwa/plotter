@@ -237,7 +237,7 @@ pub mod demo {
 
         let position = gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0);
 
-        let mut axes = Rc::new(RefCell::new(Axes::new(Extents {
+        let axes = Rc::new(RefCell::new(Axes::new(Extents {
             xmin: -2.0 * PI,
             xmax: 2.0 * PI,
             ymin: -1.1,
@@ -246,6 +246,7 @@ pub mod demo {
 
         let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
         let signal_sin: Vec<_> = xs.iter().map(|x| x.sin()).collect();
+        let signal_a: Vec<_> = xs.iter().map(|x| ((0.5 * x).powf(2.0)).sin()).collect();
         let signal_sinc: Vec<_> =
             xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
 
@@ -254,9 +255,21 @@ pub mod demo {
             "Signal",
         ));
         axes.borrow_mut().add_trace(Trace::new(
+            std::iter::zip(xs.clone(), signal_a).collect(),
+            "Signal",
+        ));
+        axes.borrow_mut().add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_sinc).collect(),
             "Signal",
         ));
+
+        {
+            let svg = gtk::cairo::SvgSurface::new(800.0, 500.0, Some("abc.svg")).unwrap();
+            let mut cx = gtk::cairo::Context::new(svg).unwrap();
+            cx.set_source_rgb(1.0, 1.0, 1.0);
+            cx.paint().unwrap();
+            axes.borrow_mut().draw(&mut cx, Rectangle::new(0.0, 0.0, 800.0, 500.0));
+        }
 
         darea.borrow().set_draw_func(move |_da, cx, width, height| {
             cx.set_source_rgb(1.0, 1.0, 1.0);
