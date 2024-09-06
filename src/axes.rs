@@ -1,4 +1,4 @@
-use gtk::cairo::Context;
+use gtk::cairo::{Context, Matrix};
 
 use crate::axis::Axis;
 use crate::cairo_utils::PixelContext;
@@ -57,12 +57,60 @@ impl Extents {
     }
 }
 
+pub struct Trace {
+    pub values: Vec<(f64, f64)>,
+    pub bbox: gtk::cairo::Rectangle,
+    pub name: String,
+}
+
+impl Trace {
+    pub fn new(values: Vec<(f64, f64)>, name: &str) -> Self {
+        let mut s = Self {
+            values,
+            bbox: gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0),
+            name: name.to_owned(),
+        };
+        s.update_bbox();
+        s
+    }
+
+    pub fn draw(&self, cx: &Context) {
+        if self.values.len() > 0 {
+            cx.move_to(self.values[0].0, self.values[0].1);
+        }
+        for (x, y) in &self.values[1..] {
+            cx.line_to(*x, *y);
+        }
+    }
+
+    fn update_bbox(&mut self) {
+        self.bbox = if self.values.len() < 2 {
+            gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0)
+        } else {
+            let (xmin, xmax, ymin, ymax) = self.values.iter().fold(
+                (
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                ),
+                |(xmin, xmax, ymin, ymax), (x, y)| {
+                    (xmin.min(*x), xmax.max(*x), ymin.min(*y), ymax.max(*y))
+                },
+            );
+            gtk::cairo::Rectangle::new(xmin, xmax, ymin, ymax)
+        }
+    }
+}
+
 pub struct Axes {
     primary_x: Axis,
     primary_y: Axis,
     grid: Grid,
 
     margins: Margins,
+
+    traces: Vec<Trace>,
 }
 
 impl Axes {
@@ -72,7 +120,12 @@ impl Axes {
             primary_y: Axis::vertical((e.ymin, e.ymax)),
             grid: Grid {},
             margins: Margins::default(),
+            traces: vec![],
         }
+    }
+
+    pub fn add_trace(&mut self, t: Trace) {
+        self.traces.push(t);
     }
 
     /// Draw to a Cairo context
@@ -103,27 +156,72 @@ impl Axes {
             &self.primary_y,
         );
 
+        if false {
+            cx.set_line_width(1.0);
+            cx.set_source_rgb(1.0, 0.0, 0.0);
+            cx.rectangle(
+                (rect.x() - 0.5).round() + 0.5,
+                (rect.y() - 0.5).round() + 0.5,
+                rect.width().round(),
+                rect.height().round(),
+            );
+            cx.stroke().unwrap();
+        }
+
+        // draw the traces
+        cx.rectangle(ll.0, ll.1, width, -height);
+        cx.clip();
+        for (i, t) in self.traces.iter().enumerate() {
+            self.transform_data(cx, rect);
+            t.draw(cx);
+            cx.identity_matrix();
+            cx.set_line_width(2.0);
+            cx.set_source_rgb(1.0 - 0.2 * (i as f64), 0.4 + 0.4 * (i as f64), 0.0);
+            cx.stroke().unwrap();
+        }
+        cx.reset_clip();
+
+        // chart area outline
         cx.set_line_width(1.0);
         cx.set_source_rgb(0.0, 0.0, 0.0);
         PixelContext::new(cx).rectangle(ll.0, ll.1, width, -height);
         cx.stroke().unwrap();
+    }
 
-        cx.set_line_width(1.0);
-        cx.set_source_rgb(1.0, 0.0, 0.0);
-        cx.rectangle(
-            (rect.x() - 0.5).round() + 0.5,
-            (rect.y() - 0.5).round() + 0.5,
-            rect.width().round(),
-            rect.height().round(),
+    /// Set the cairo transformation matrix to plot in data coordinates
+    fn transform_data(
+        &self,
+        cx: &Context,
+        // pixel coordinates for the full Axes area (including margins):
+        rect: gtk::cairo::Rectangle,
+    ) {
+        // physical size of the chart area:
+        let width = rect.width() - self.margins.left - self.margins.right;
+        let height = rect.height() - self.margins.bottom - self.margins.top;
+
+        let scale_width = width / (self.primary_x.range.1 - self.primary_x.range.0);
+        let scale_height = height / (self.primary_y.range.0 - self.primary_y.range.1);
+
+        let origin = (
+            rect.x() + self.margins.left - self.primary_x.range.0 * scale_width,
+            rect.y() + rect.height() - self.margins.bottom - self.primary_y.range.0 * scale_height,
         );
-        cx.stroke().unwrap();
+
+        cx.transform(Matrix::new(
+            scale_width,
+            0.0,
+            0.0,
+            scale_height,
+            origin.0,
+            origin.1,
+        ));
     }
 }
 
 pub mod demo {
     use super::*;
     use gtk::{cairo::Rectangle, prelude::*};
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 
     pub fn main() -> gtk::glib::ExitCode {
         let app = gtk::Application::builder().application_id("axis-demo").build();
@@ -133,18 +231,32 @@ pub mod demo {
     }
 
     fn build_ui(app: &gtk::Application) {
-        let darea = gtk::DrawingArea::builder().content_height(100).content_width(200).build();
+        let darea = gtk::DrawingArea::builder().content_height(500).content_width(800).build();
 
         let darea = Rc::new(RefCell::new(darea));
 
-        let position = gtk::cairo::Rectangle::new(0.05, 0.05, 0.9, 0.9);
+        let position = gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0);
 
-        let axes = Rc::new(RefCell::new(Axes::new(Extents {
-            xmin: -1.733,
-            xmax: -1.658,
-            ymin: 0.0,
-            ymax: 1.0,
+        let mut axes = Rc::new(RefCell::new(Axes::new(Extents {
+            xmin: -2.0 * PI,
+            xmax: 2.0 * PI,
+            ymin: -1.1,
+            ymax: 1.1,
         })));
+
+        let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
+        let signal_sin: Vec<_> = xs.iter().map(|x| x.sin()).collect();
+        let signal_sinc: Vec<_> =
+            xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
+
+        axes.borrow_mut().add_trace(Trace::new(
+            std::iter::zip(xs.clone(), signal_sin).collect(),
+            "Signal",
+        ));
+        axes.borrow_mut().add_trace(Trace::new(
+            std::iter::zip(xs.clone(), signal_sinc).collect(),
+            "Signal",
+        ));
 
         darea.borrow().set_draw_func(move |_da, cx, width, height| {
             cx.set_source_rgb(1.0, 1.0, 1.0);
