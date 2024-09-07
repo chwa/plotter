@@ -176,7 +176,7 @@ impl Axes {
             t.draw(cx);
             cx.identity_matrix();
             cx.set_line_width(2.0);
-            cx.set_source_rgb(1.0 - 0.2 * (i as f64), 0.4 + 0.4 * (i as f64), 0.0);
+            cx.set_source_rgb(1.0 - 0.1 * (i as f64), 0.6 + 0.2 * (i as f64), 0.0);
             cx.stroke().unwrap();
         }
         cx.reset_clip();
@@ -246,7 +246,8 @@ pub mod demo {
 
         let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
         let signal_sin: Vec<_> = xs.iter().map(|x| x.sin()).collect();
-        let signal_a: Vec<_> = xs.iter().map(|x| ((0.5 * x).powf(2.0)).sin()).collect();
+        let signal_a: Vec<_> =
+            xs.iter().map(|x| ((0.5 * x).powf(2.0)).sin() / (0.5 + x.abs())).collect();
         let signal_sinc: Vec<_> =
             xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
 
@@ -264,6 +265,7 @@ pub mod demo {
         ));
 
         {
+            // SVG export:
             let svg = gtk::cairo::SvgSurface::new(800.0, 500.0, Some("abc.svg")).unwrap();
             let mut cx = gtk::cairo::Context::new(svg).unwrap();
             cx.set_source_rgb(1.0, 1.0, 1.0);
