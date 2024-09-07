@@ -128,6 +128,27 @@ impl Axes {
         self.traces.push(t);
     }
 
+    pub fn cursor_position(
+        &self,
+        rect: gtk::cairo::Rectangle,
+        x: f64,
+        y: f64,
+    ) -> Option<(f64, f64)> {
+        let chart_width = rect.width() - self.margins.left - self.margins.right;
+        let chart_height = rect.height() - self.margins.top - self.margins.bottom;
+        let x_01 = (x - rect.x() - self.margins.left) / chart_width;
+        let y_01 = (y - rect.y() - self.margins.top) / chart_height;
+
+        if 0.0 <= x_01 && x_01 <= 1.0 && 0.0 <= y_01 && y_01 <= 1.0 {
+            Some((
+                self.primary_x.range.0 + x_01 * (self.primary_x.range.1 - self.primary_x.range.0),
+                self.primary_y.range.1 + y_01 * (self.primary_y.range.0 - self.primary_y.range.1),
+            ))
+        } else {
+            None
+        }
+    }
+
     /// Draw to a Cairo context
     pub fn draw(
         &mut self,
@@ -273,19 +294,35 @@ pub mod demo {
             axes.borrow_mut().draw(&mut cx, Rectangle::new(0.0, 0.0, 800.0, 500.0));
         }
 
+        // current rectangle for the Axes (pixel coords), updated on draw
+        let current_rect = Rc::new(RefCell::new(Rectangle::new(0.0, 0.0, 1.0, 1.0)));
+
+        let ax = axes.clone();
+        let rect = current_rect.clone();
         darea.borrow().set_draw_func(move |_da, cx, width, height| {
             cx.set_source_rgb(1.0, 1.0, 1.0);
             cx.paint().unwrap();
-            axes.borrow_mut().draw(
-                cx,
-                Rectangle::new(
-                    position.x() * width as f64,
-                    position.y() * height as f64,
-                    position.width() * width as f64,
-                    position.height() * height as f64,
-                ),
+
+            *rect.borrow_mut() = Rectangle::new(
+                position.x() * width as f64,
+                position.y() * height as f64,
+                position.width() * width as f64,
+                position.height() * height as f64,
             );
+
+            ax.borrow_mut().draw(cx, *rect.borrow());
         });
+
+        let motion = gtk::EventControllerMotion::new();
+        let ax = axes.clone();
+        let rect = current_rect.clone();
+        motion.connect_motion(move |_, x, y| {
+            if let Some(pos) = ax.borrow_mut().cursor_position(*rect.borrow(), x, y) {
+                dbg!(pos);
+            }
+        });
+
+        darea.borrow().add_controller(motion);
 
         let window = gtk::ApplicationWindow::builder()
             .application(app)
