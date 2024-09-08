@@ -270,7 +270,7 @@ pub mod demo {
     use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 
     pub fn main() -> gtk::glib::ExitCode {
-        let app = gtk::Application::builder().application_id("axis-demo").build();
+        let app = gtk::Application::builder().build();
 
         app.connect_activate(build_ui);
         app.run()
@@ -357,10 +357,16 @@ pub mod demo {
         let ax = axes.clone();
         let da = darea.clone();
         let cur = cursor.clone();
-        zoom.connect_scroll(move |_, _, y| {
-            let scale = 1.0 + 0.1 * y.clamp(-1.0, 1.0);
-            ax.borrow_mut().zoom_at(*cur.borrow(), scale);
-            da.borrow().queue_draw();
+        zoom.connect_scroll(move |s, _, y| {
+            if s.current_event()
+                .unwrap()
+                .modifier_state()
+                .contains(gtk::gdk::ModifierType::SHIFT_MASK)
+            {
+                let scale = 1.0 + 0.1 * y.clamp(-1.0, 1.0);
+                ax.borrow_mut().zoom_at(*cur.borrow(), scale);
+                da.borrow().queue_draw();
+            }
             gtk::glib::Propagation::Stop
         });
         darea.borrow().add_controller(zoom);
