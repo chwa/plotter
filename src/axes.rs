@@ -113,6 +113,14 @@ pub struct Axes {
     traces: Vec<Trace>,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum CursorPosition {
+    Chart(f64, f64),
+    XAxis(f64),
+    YAxis(f64),
+    None,
+}
+
 impl Axes {
     pub fn new(e: Extents) -> Self {
         Self {
@@ -128,24 +136,41 @@ impl Axes {
         self.traces.push(t);
     }
 
-    pub fn cursor_position(
-        &self,
-        rect: gtk::cairo::Rectangle,
-        x: f64,
-        y: f64,
-    ) -> Option<(f64, f64)> {
+    pub fn cursor_position(&self, rect: gtk::cairo::Rectangle, x: f64, y: f64) -> CursorPosition {
         let chart_width = rect.width() - self.margins.left - self.margins.right;
         let chart_height = rect.height() - self.margins.top - self.margins.bottom;
         let x_01 = (x - rect.x() - self.margins.left) / chart_width;
         let y_01 = (y - rect.y() - self.margins.top) / chart_height;
 
+        let data_x =
+            self.primary_x.range.0 + x_01 * (self.primary_x.range.1 - self.primary_x.range.0);
+        let data_y =
+            self.primary_y.range.1 + y_01 * (self.primary_y.range.0 - self.primary_y.range.1);
+
         if 0.0 <= x_01 && x_01 <= 1.0 && 0.0 <= y_01 && y_01 <= 1.0 {
-            Some((
-                self.primary_x.range.0 + x_01 * (self.primary_x.range.1 - self.primary_x.range.0),
-                self.primary_y.range.1 + y_01 * (self.primary_y.range.0 - self.primary_y.range.1),
-            ))
+            CursorPosition::Chart(data_x, data_y)
+        } else if x_01 < 0.0 && 0.0 <= y_01 && y_01 <= 1.0 {
+            CursorPosition::YAxis(data_y)
+        } else if y_01 > 1.0 && 0.0 <= x_01 && x_01 <= 1.0 {
+            CursorPosition::XAxis(data_x)
         } else {
-            None
+            CursorPosition::None
+        }
+    }
+
+    pub fn zoom_at(&mut self, position: CursorPosition, scale: f64) {
+        match position {
+            CursorPosition::Chart(x, y) => {
+                self.primary_x.zoom_at(x, scale);
+                self.primary_y.zoom_at(y, scale);
+            }
+            CursorPosition::XAxis(x) => {
+                self.primary_x.zoom_at(x, scale);
+            }
+            CursorPosition::YAxis(y) => {
+                self.primary_y.zoom_at(y, scale);
+            }
+            CursorPosition::None => {}
         }
     }
 
@@ -313,16 +338,32 @@ pub mod demo {
             ax.borrow_mut().draw(cx, *rect.borrow());
         });
 
+        // cursor position from last motion event
+        let cursor = Rc::new(RefCell::new(CursorPosition::None));
+
+        // Motion event controller
         let motion = gtk::EventControllerMotion::new();
         let ax = axes.clone();
         let rect = current_rect.clone();
+        let cur = cursor.clone();
         motion.connect_motion(move |_, x, y| {
-            if let Some(pos) = ax.borrow_mut().cursor_position(*rect.borrow(), x, y) {
-                dbg!(pos);
-            }
+            *cur.borrow_mut() = ax.borrow_mut().cursor_position(*rect.borrow(), x, y);
         });
 
         darea.borrow().add_controller(motion);
+
+        // Scroll event controller
+        let zoom = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+        let ax = axes.clone();
+        let da = darea.clone();
+        let cur = cursor.clone();
+        zoom.connect_scroll(move |_, _, y| {
+            let scale = 1.0 + 0.1 * y.clamp(-1.0, 1.0);
+            ax.borrow_mut().zoom_at(*cur.borrow(), scale);
+            da.borrow().queue_draw();
+            gtk::glib::Propagation::Stop
+        });
+        darea.borrow().add_controller(zoom);
 
         let window = gtk::ApplicationWindow::builder()
             .application(app)

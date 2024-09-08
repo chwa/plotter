@@ -49,6 +49,15 @@ impl Axis {
         }
     }
 
+    pub fn zoom_at(&mut self, x: f64, scale: f64) {
+        let width = self.range.1 - self.range.0;
+        let x_01 = (x - self.range.0) / width;
+        let new_width = scale * width;
+
+        self.range.0 = x - x_01 * new_width;
+        self.range.1 = x + (1.0 - x_01) * new_width;
+    }
+
     pub fn draw(&self, cx: &gtk::cairo::Context, start_pos: (f64, f64), length: f64) {
         PixelContext::new(cx).move_to(start_pos.0, start_pos.1);
         cx.set_line_width(1.0);
