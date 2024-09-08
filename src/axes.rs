@@ -276,20 +276,7 @@ pub mod demo {
         app.run()
     }
 
-    fn build_ui(app: &gtk::Application) {
-        let darea = gtk::DrawingArea::builder().content_height(500).content_width(800).build();
-
-        let darea = Rc::new(RefCell::new(darea));
-
-        let position = gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0);
-
-        let axes = Rc::new(RefCell::new(Axes::new(Extents {
-            xmin: -2.0 * PI,
-            xmax: 2.0 * PI,
-            ymin: -1.1,
-            ymax: 1.1,
-        })));
-
+    fn example_signals(axes: &mut Axes) {
         let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
         let signal_sin: Vec<_> = xs.iter().map(|x| x.sin()).collect();
         let signal_a: Vec<_> =
@@ -297,66 +284,84 @@ pub mod demo {
         let signal_sinc: Vec<_> =
             xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
 
-        axes.borrow_mut().add_trace(Trace::new(
+        axes.add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_sin).collect(),
             "Signal",
         ));
-        axes.borrow_mut().add_trace(Trace::new(
+        axes.add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_a).collect(),
             "Signal",
         ));
-        axes.borrow_mut().add_trace(Trace::new(
+        axes.add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_sinc).collect(),
             "Signal",
         ));
+    }
 
-        {
-            // SVG export:
-            let svg = gtk::cairo::SvgSurface::new(800.0, 500.0, Some("abc.svg")).unwrap();
-            let mut cx = gtk::cairo::Context::new(svg).unwrap();
-            cx.set_source_rgb(1.0, 1.0, 1.0);
-            cx.paint().unwrap();
-            axes.borrow_mut().draw(&mut cx, Rectangle::new(0.0, 0.0, 800.0, 500.0));
+    fn export_svg(axes: &mut Axes) {
+        let svg = gtk::cairo::SvgSurface::new(800.0, 500.0, Some("abc.svg")).unwrap();
+        let mut cx = gtk::cairo::Context::new(svg).unwrap();
+        cx.set_source_rgb(1.0, 1.0, 1.0);
+        cx.paint().unwrap();
+        axes.draw(&mut cx, Rectangle::new(0.0, 0.0, 800.0, 500.0));
+    }
+
+    fn build_ui(app: &gtk::Application) {
+        let darea = Rc::new(RefCell::new(
+            gtk::DrawingArea::builder().content_height(500).content_width(800).build(),
+        ));
+
+        struct SharedState {
+            axes: Axes,
+            /// current rectangle for the Axes (pixel coords), updated on draw:
+            current_rect: Rectangle,
+            /// cursor position from last motion event
+            cursor: CursorPosition,
         }
 
-        // current rectangle for the Axes (pixel coords), updated on draw
-        let current_rect = Rc::new(RefCell::new(Rectangle::new(0.0, 0.0, 1.0, 1.0)));
+        let state = Rc::new(RefCell::new(SharedState {
+            axes: Axes::new(Extents {
+                xmin: -2.0 * PI,
+                xmax: 2.0 * PI,
+                ymin: -1.1,
+                ymax: 1.1,
+            }),
+            current_rect: Rectangle::new(0.0, 0.0, 1.0, 1.0),
+            cursor: CursorPosition::None,
+        }));
 
-        let ax = axes.clone();
-        let rect = current_rect.clone();
+        // let current_rect = Rc::new(RefCell::new(Rectangle::new(0.0, 0.0, 1.0, 1.0)));
+
+        let st = state.clone();
+        let position = gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0);
         darea.borrow().set_draw_func(move |_da, cx, width, height| {
             cx.set_source_rgb(1.0, 1.0, 1.0);
             cx.paint().unwrap();
 
-            *rect.borrow_mut() = Rectangle::new(
+            st.borrow_mut().current_rect = Rectangle::new(
                 position.x() * width as f64,
                 position.y() * height as f64,
                 position.width() * width as f64,
                 position.height() * height as f64,
             );
 
-            ax.borrow_mut().draw(cx, *rect.borrow());
+            let rect = st.borrow().current_rect;
+            st.borrow_mut().axes.draw(cx, rect);
         });
-
-        // cursor position from last motion event
-        let cursor = Rc::new(RefCell::new(CursorPosition::None));
 
         // Motion event controller
         let motion = gtk::EventControllerMotion::new();
-        let ax = axes.clone();
-        let rect = current_rect.clone();
-        let cur = cursor.clone();
+        let st = state.clone();
         motion.connect_motion(move |_, x, y| {
-            *cur.borrow_mut() = ax.borrow_mut().cursor_position(*rect.borrow(), x, y);
+            let cursor = st.borrow().axes.cursor_position(st.borrow().current_rect, x, y);
+            st.borrow_mut().cursor = cursor;
         });
-
         darea.borrow().add_controller(motion);
 
         // Scroll event controller
         let zoom = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
-        let ax = axes.clone();
         let da = darea.clone();
-        let cur = cursor.clone();
+        let st = state.clone();
         zoom.connect_scroll(move |s, _, y| {
             if s.current_event()
                 .unwrap()
@@ -364,12 +369,15 @@ pub mod demo {
                 .contains(gtk::gdk::ModifierType::SHIFT_MASK)
             {
                 let scale = 1.0 + 0.1 * y.clamp(-1.0, 1.0);
-                ax.borrow_mut().zoom_at(*cur.borrow(), scale);
+                let cursor = st.borrow().cursor;
+                st.borrow_mut().axes.zoom_at(cursor, scale);
                 da.borrow().queue_draw();
             }
             gtk::glib::Propagation::Stop
         });
         darea.borrow().add_controller(zoom);
+
+        example_signals(&mut state.borrow_mut().axes);
 
         let window = gtk::ApplicationWindow::builder()
             .application(app)
