@@ -361,8 +361,6 @@ pub mod demo {
             cursor: AxesCursorPosition::None,
         }));
 
-        // let current_rect = Rc::new(RefCell::new(Rectangle::new(0.0, 0.0, 1.0, 1.0)));
-
         let st = state.clone();
         let position = gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0);
         darea.borrow().set_draw_func(move |_da, cx, width, height| {

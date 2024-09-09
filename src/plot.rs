@@ -1,11 +1,6 @@
 use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 
-use gtk::cairo::Rectangle;
-
-use crate::{
-    axes::{Axes, Extents},
-    axis::Axis,
-};
+use crate::axes::{Axes, Extents};
 
 struct Plot {
     axes: Vec<(Rc<RefCell<Axes>>, f64)>,
@@ -53,7 +48,7 @@ impl Plot {
 }
 
 pub mod demo {
-    use crate::axes::{AxesCursorPosition, Extents, Trace};
+    use crate::axes::{AxesCursorPosition, Trace};
 
     use super::*;
     use gtk::{cairo::Rectangle, prelude::*};
@@ -152,8 +147,6 @@ pub mod demo {
             cx.set_source_rgb(1.0, 0.9, 1.0);
             cx.paint().unwrap();
 
-            // let a = st.borrow().plot.axes[0].0.borrow().;
-
             st.borrow_mut().current_rect = Rectangle::new(
                 position.x() * width as f64,
                 position.y() * height as f64,
@@ -187,5 +180,4 @@ pub mod demo {
 
         window.present();
     }
-    // }
 }

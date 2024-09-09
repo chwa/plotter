@@ -22,15 +22,15 @@ pub fn text_aligned(
     cx.set_font_size(fontsize);
     cx.set_source_rgb(0.0, 0.0, 0.0);
     cx.select_font_face(
-        // "Open Sans", //"Roboto Condensed",
-        if bold { "Roboto" } else { "Roboto Light" },
+        "Roboto Light",
         gtk::cairo::FontSlant::Normal,
-        gtk::cairo::FontWeight::Normal,
+        if bold {
+            gtk::cairo::FontWeight::Bold
+        } else {
+            gtk::cairo::FontWeight::Normal
+        },
     );
     let te = cx.text_extents(text).unwrap();
-    // let fe = cr.font_extents().unwrap();
-
-    // dbg!((&pos, cx.current_point().unwrap(), te.height() / 2.0));
 
     // we really need the placement "from the text's perspective" (rotated)
     if vertical {
@@ -72,6 +72,7 @@ pub fn text_aligned(
 pub struct PixelContext<'a> {
     cx: &'a gtk::cairo::Context,
 }
+
 impl<'a> PixelContext<'a> {
     pub fn new(cx: &'a gtk::cairo::Context) -> Self {
         Self { cx }

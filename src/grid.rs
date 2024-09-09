@@ -32,7 +32,6 @@ impl Grid {
         for t in x_ticks_minor {
             cx.move_to(start_point.0, start_point.1);
             let t_01 = (t - x_range.0) / (x_range.1 - x_range.0);
-            // let x_px = width * (self.position.x() + t_01 * self.position.width());
             PixelContext::new(cx).rel_move_to(t_01 * rect.width(), 0.0);
             PixelContext::new(cx).rel_line_to(0.0, -rect.height());
         }
@@ -61,74 +60,3 @@ impl Grid {
         cx.stroke().unwrap();
     }
 }
-
-// pub mod demo {
-//     use crate::{axis::Axis, locator::LinLocator};
-
-//     use super::*;
-//     use gtk::prelude::*;
-//     use std::{cell::RefCell, rc::Rc};
-
-//     pub fn main() -> gtk::glib::ExitCode {
-//         // Create a new application
-//         let app = gtk::Application::builder()
-//             .application_id("axis-demo")
-//             .build();
-
-//         // Connect to "activate" signal of `app`
-//         app.connect_activate(build_ui);
-
-//         // Run the application
-//         app.run()
-//     }
-
-//     fn build_ui(app: &gtk::Application) {
-//         let darea = gtk::DrawingArea::builder()
-//             .content_height(700)
-//             .content_width(1200)
-//             .build();
-
-//         let darea = Rc::new(RefCell::new(darea));
-
-//         let position = gtk::cairo::Rectangle::new(0.1, 0.1, 0.8, 0.7);
-
-//         let x_range = (-12.345, 78.9);
-//         let y_range = (765.2, 992.4);
-
-//         let xaxis = Rc::new(RefCell::new(Axis::linear1(
-//             position.y() + position.height(),
-//             position.x(),
-//             position.x() + position.width(),
-//             x_range,
-//         )));
-
-//         let yaxis = Rc::new(RefCell::new(Axis::vertical(
-//             position.x(),
-//             position.y(),
-//             position.y() + position.height(),
-//             y_range,
-//         )));
-
-//         let grid = Rc::new(RefCell::new(Grid {
-//             position,
-//             x_range,
-//             x_locator: Box::new(LinLocator::new(0.025)),
-//             y_range,
-//             y_locator: Box::new(LinLocator::new(0.025)),
-//         }));
-
-//         darea.borrow().set_draw_func(move |_da, cx, width, height| {
-//             xaxis.borrow_mut().draw(cx, width as f64, height as f64);
-//             yaxis.borrow_mut().draw(cx, width as f64, height as f64);
-//             grid.borrow_mut().draw(cx, width as f64, height as f64);
-//         });
-
-//         let window = gtk::ApplicationWindow::builder()
-//             .application(app)
-//             .title("My GTK App")
-//             .child(&*darea.borrow())
-//             .build();
-
-//         window.present();
-//     }
-// }

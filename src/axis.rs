@@ -9,12 +9,6 @@ enum AxisDirection {
     Top,
 }
 
-struct AxisPlacement {
-    start_pos: (f64, f64),
-    length: f64,
-    direction: AxisDirection,
-}
-
 enum AxisType {
     Lin,
     Log,
@@ -81,12 +75,10 @@ impl Axis {
         let (ticks_major, ticks_minor, decimals);
         match self.direction {
             AxisDirection::Left | AxisDirection::Right => {
-                // PixelContext::new(cx).rel_line_to(0.0, -length);
                 (ticks_major, ticks_minor, decimals) =
                     self.locator.get_ticks(self.range, Some(50.0 / length));
             }
             _ => {
-                // PixelContext::new(cx).rel_line_to(length, 0.0);
                 (ticks_major, ticks_minor, decimals) =
                     self.locator.get_ticks(self.range, Some(50.0 / length));
             }
@@ -99,10 +91,8 @@ impl Axis {
         self.draw_ticks(cx, length, ticks_minor, 3.0, false, 0);
 
         if let Some(text) = &self.label {
-            // PixelContext::new(cx).move_to(start_pos.0, start_pos.1);
             match self.direction {
                 AxisDirection::Left => {
-                    // PixelContext::new(cx).move_to(start_pos.0 - 30.0, start_pos.1 - length / 2.0);
                     text_aligned(
                         cx,
                         (start_pos.0, start_pos.1 - length / 2.0),
@@ -116,7 +106,6 @@ impl Axis {
                 }
                 AxisDirection::Right => {}
                 AxisDirection::Bottom => {
-                    // PixelContext::new(cx).move_to(start_pos.0 - 30.0, start_pos.1 - length / 2.0);
                     text_aligned(
                         cx,
                         (start_pos.0 + length / 2.0, start_pos.1),
@@ -144,13 +133,11 @@ impl Axis {
         decimals: usize,
     ) {
         // save start position
-
         let start_point = cx.current_point().unwrap();
 
         for t in ticks {
             let t_01 = (t - self.range.0) / (self.range.1 - self.range.0);
 
-            // let (mut x_px, mut y_px) = (width * start_pos.0, height * start_pos.1);
             let text = format!("{:.prec$}", t, prec = decimals);
 
             cx.move_to(start_point.0, start_point.1);
@@ -221,81 +208,7 @@ impl Axis {
                     }
                 }
             }
-            // dbg!((
-            //     t,
-            //     cx.current_point().unwrap(),
-            //     cx.has_current_point().unwrap()
-            // ));
         }
         cx.stroke().unwrap();
     }
 }
-
-// pub mod demo {
-//     use super::*;
-//     use gtk::prelude::*;
-//     use std::{cell::RefCell, rc::Rc};
-
-//     pub fn main() -> gtk::glib::ExitCode {
-//         // Create a new application
-//         let app = gtk::Application::builder()
-//             .application_id("axis-demo")
-//             .build();
-
-//         // Connect to "activate" signal of `app`
-//         app.connect_activate(build_ui);
-
-//         // Run the application
-//         app.run()
-//     }
-
-//     fn build_ui(app: &gtk::Application) {
-//         let darea = gtk::DrawingArea::builder()
-//             .content_height(700)
-//             .content_width(1200)
-//             .build();
-
-//         let darea = Rc::new(RefCell::new(darea));
-
-//         let horiz = vec![
-//             (-23.45, 7.892, 0.2),
-//             (-0.087, -0.0135, 0.3),
-//             (-23.45, 7.892, 0.4),
-//             (-23.45, -23.192, 0.8),
-//             (2223.45, 2224.45, 0.6),
-//             (2223.45, 2224.45, 0.5),
-//             (2223.45, 2224.45, 0.15),
-//         ];
-
-//         let axs: Vec<_> = horiz
-//             .iter()
-//             .enumerate()
-//             .map(|(i, (start, stop, length))| Rc::new(RefCell::new(Axis::linear1((*start, *stop)))))
-//             .collect();
-
-//         let axs_vert: Vec<_> = horiz
-//             .iter()
-//             .enumerate()
-//             .map(|(i, (start, stop, length))| {
-//                 Rc::new(RefCell::new(Axis::vertical((*start, *stop))))
-//             })
-//             .collect();
-
-//         darea.borrow().set_draw_func(move |_da, cx, width, height| {
-//             for ax in &axs {
-//                 ax.borrow_mut().draw(cx, (0.1, 0.1), 0.9);
-//             }
-//             for ax in &axs_vert {
-//                 ax.borrow_mut().draw(cx, (0.1, 0.1), 0.9);
-//             }
-//         });
-
-//         let window = gtk::ApplicationWindow::builder()
-//             .application(app)
-//             .title("My GTK App")
-//             .child(&*darea.borrow())
-//             .build();
-
-//         window.present();
-//     }
-// }
