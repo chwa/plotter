@@ -123,7 +123,7 @@ impl Axis {
                         &text,
                         TextPos::Bottom,
                         15.0,
-                        50.0,
+                        30.0,
                         false,
                         true,
                     );

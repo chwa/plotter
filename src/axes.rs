@@ -18,7 +18,7 @@ impl Default for Margins {
             left: 75.0,
             right: 20.0,
             top: 20.0,
-            bottom: 75.0,
+            bottom: 60.0,
         }
     }
 }
@@ -105,7 +105,7 @@ pub struct Axes {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum CursorPosition {
+pub enum AxesCursorPosition {
     Chart(f64, f64),
     XAxis(f64),
     YAxis(f64),
@@ -127,7 +127,12 @@ impl Axes {
         self.traces.push(t);
     }
 
-    pub fn cursor_position(&self, rect: gtk::cairo::Rectangle, x: f64, y: f64) -> CursorPosition {
+    pub fn cursor_position(
+        &self,
+        rect: gtk::cairo::Rectangle,
+        x: f64,
+        y: f64,
+    ) -> AxesCursorPosition {
         let chart_width = rect.width() - self.margins.left - self.margins.right;
         let chart_height = rect.height() - self.margins.top - self.margins.bottom;
         let x_01 = (x - rect.x() - self.margins.left) / chart_width;
@@ -137,13 +142,13 @@ impl Axes {
         let data_y = self.primary_y.axis_to_data(1.0 - y_01);
 
         if 0.0 <= x_01 && x_01 <= 1.0 && 0.0 <= y_01 && y_01 <= 1.0 {
-            CursorPosition::Chart(data_x, data_y)
+            AxesCursorPosition::Chart(data_x, data_y)
         } else if x_01 < 0.0 && 0.0 <= y_01 && y_01 <= 1.0 {
-            CursorPosition::YAxis(data_y)
+            AxesCursorPosition::YAxis(data_y)
         } else if y_01 > 1.0 && 0.0 <= x_01 && x_01 <= 1.0 {
-            CursorPosition::XAxis(data_x)
+            AxesCursorPosition::XAxis(data_x)
         } else {
-            CursorPosition::None
+            AxesCursorPosition::None
         }
     }
 
@@ -171,19 +176,19 @@ impl Axes {
         }
     }
 
-    pub fn zoom_at(&mut self, position: CursorPosition, scale: f64) {
+    pub fn zoom_at(&mut self, position: AxesCursorPosition, scale: f64) {
         match position {
-            CursorPosition::Chart(x, y) => {
+            AxesCursorPosition::Chart(x, y) => {
                 self.primary_x.zoom_at(x, scale);
                 self.primary_y.zoom_at(y, scale);
             }
-            CursorPosition::XAxis(x) => {
+            AxesCursorPosition::XAxis(x) => {
                 self.primary_x.zoom_at(x, scale);
             }
-            CursorPosition::YAxis(y) => {
+            AxesCursorPosition::YAxis(y) => {
                 self.primary_y.zoom_at(y, scale);
             }
-            CursorPosition::None => {}
+            AxesCursorPosition::None => {}
         }
     }
 
@@ -234,13 +239,15 @@ impl Axes {
             if t.values.len() > 0 {
                 cx.move_to(
                     self.margins.left + width * self.primary_x.data_to_axis(t.values[0].0),
-                    self.margins.top + height * (1.0 - self.primary_y.data_to_axis(t.values[0].1)),
+                    rect.y()
+                        + self.margins.top
+                        + height * (1.0 - self.primary_y.data_to_axis(t.values[0].1)),
                 );
             }
             for (x, y) in &t.values[1..] {
                 cx.line_to(
                     self.margins.left + width * self.primary_x.data_to_axis(*x),
-                    self.margins.top + height * (1.0 - self.primary_y.data_to_axis(*y)),
+                    rect.y() + self.margins.top + height * (1.0 - self.primary_y.data_to_axis(*y)),
                 );
             }
 
@@ -340,7 +347,7 @@ pub mod demo {
             /// current rectangle for the Axes (pixel coords), updated on draw:
             current_rect: Rectangle,
             /// cursor position from last motion event
-            cursor: CursorPosition,
+            cursor: AxesCursorPosition,
         }
 
         let state = Rc::new(RefCell::new(SharedState {
@@ -351,7 +358,7 @@ pub mod demo {
                 ymax: 1.1,
             }),
             current_rect: Rectangle::new(0.0, 0.0, 1.0, 1.0),
-            cursor: CursorPosition::None,
+            cursor: AxesCursorPosition::None,
         }));
 
         // let current_rect = Rc::new(RefCell::new(Rectangle::new(0.0, 0.0, 1.0, 1.0)));
