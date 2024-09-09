@@ -74,31 +74,22 @@ impl Trace {
         s
     }
 
-    pub fn draw(&self, cx: &Context) {
-        if self.values.len() > 0 {
-            cx.move_to(self.values[0].0, self.values[0].1);
-        }
-        for (x, y) in &self.values[1..] {
-            cx.line_to(*x, *y);
-        }
-    }
-
     fn update_bbox(&mut self) {
         self.bbox = if self.values.len() < 2 {
             gtk::cairo::Rectangle::new(0.0, 0.0, 1.0, 1.0)
         } else {
             let (xmin, xmax, ymin, ymax) = self.values.iter().fold(
                 (
-                    f64::NEG_INFINITY,
                     f64::INFINITY,
                     f64::NEG_INFINITY,
                     f64::INFINITY,
+                    f64::NEG_INFINITY,
                 ),
                 |(xmin, xmax, ymin, ymax), (x, y)| {
                     (xmin.min(*x), xmax.max(*x), ymin.min(*y), ymax.max(*y))
                 },
             );
-            gtk::cairo::Rectangle::new(xmin, xmax, ymin, ymax)
+            gtk::cairo::Rectangle::new(xmin, ymin, xmax - xmin, ymax - ymin)
         }
     }
 }
@@ -142,10 +133,8 @@ impl Axes {
         let x_01 = (x - rect.x() - self.margins.left) / chart_width;
         let y_01 = (y - rect.y() - self.margins.top) / chart_height;
 
-        let data_x =
-            self.primary_x.range.0 + x_01 * (self.primary_x.range.1 - self.primary_x.range.0);
-        let data_y =
-            self.primary_y.range.1 + y_01 * (self.primary_y.range.0 - self.primary_y.range.1);
+        let data_x = self.primary_x.axis_to_data(x_01);
+        let data_y = self.primary_y.axis_to_data(1.0 - y_01);
 
         if 0.0 <= x_01 && x_01 <= 1.0 && 0.0 <= y_01 && y_01 <= 1.0 {
             CursorPosition::Chart(data_x, data_y)
@@ -155,6 +144,30 @@ impl Axes {
             CursorPosition::XAxis(data_x)
         } else {
             CursorPosition::None
+        }
+    }
+
+    pub fn zoom_fit(&mut self) {
+        if self.traces.len() > 0 {
+            let (xmin, xmax, ymin, ymax) = self.traces.iter().fold(
+                (
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                ),
+                |(xmin, xmax, ymin, ymax), tr| {
+                    let r = tr.bbox;
+                    (
+                        xmin.min(r.x()),
+                        xmax.max(r.x() + r.width()),
+                        ymin.min(r.y()),
+                        ymax.max(r.y() + r.height()),
+                    )
+                },
+            );
+            self.primary_x.range = (xmin, xmax);
+            self.primary_y.range = (ymin, ymax);
         }
     }
 
@@ -218,8 +231,19 @@ impl Axes {
         cx.rectangle(ll.0, ll.1, width, -height);
         cx.clip();
         for (i, t) in self.traces.iter().enumerate() {
-            self.transform_data(cx, rect);
-            t.draw(cx);
+            if t.values.len() > 0 {
+                cx.move_to(
+                    self.margins.left + width * self.primary_x.data_to_axis(t.values[0].0),
+                    self.margins.top + height * (1.0 - self.primary_y.data_to_axis(t.values[0].1)),
+                );
+            }
+            for (x, y) in &t.values[1..] {
+                cx.line_to(
+                    self.margins.left + width * self.primary_x.data_to_axis(*x),
+                    self.margins.top + height * (1.0 - self.primary_y.data_to_axis(*y)),
+                );
+            }
+
             cx.identity_matrix();
             cx.set_line_width(2.0);
             cx.set_source_rgb(1.0 - 0.1 * (i as f64), 0.6 + 0.2 * (i as f64), 0.0);
@@ -349,6 +373,19 @@ pub mod demo {
             st.borrow_mut().axes.draw(cx, rect);
         });
 
+        // Key event controller
+        let key = gtk::EventControllerKey::new();
+        let da = darea.clone();
+        let st = state.clone();
+        key.connect_key_pressed(move |_, _, u, _| {
+            if u == 41 {
+                st.borrow_mut().axes.zoom_fit();
+                da.borrow().queue_draw();
+            }
+            gtk::glib::Propagation::Stop
+        });
+        darea.borrow().add_controller(key);
+
         // Motion event controller
         let motion = gtk::EventControllerMotion::new();
         let st = state.clone();
@@ -384,6 +421,15 @@ pub mod demo {
             .title("My GTK App")
             .child(&*darea.borrow())
             .build();
+
+        let key = gtk::EventControllerKey::new();
+        let da = darea.clone();
+        key.connect_key_pressed(move |s, _, _, _| {
+            s.forward(&*da.borrow());
+            gtk::glib::Propagation::Stop
+        });
+
+        window.add_controller(key);
 
         window.present();
     }

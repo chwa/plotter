@@ -29,6 +29,22 @@ pub struct Axis {
 }
 
 impl Axis {
+    /// map values to relative placement on axis (0 to 1 for values in the range)
+    pub fn data_to_axis(&self, v: f64) -> f64 {
+        match self.axis_type {
+            AxisType::Lin => (v - self.range.0) / (self.range.1 - self.range.0),
+            AxisType::Log => (v / self.range.0).log2() / (self.range.1 / self.range.0).log2(),
+        }
+    }
+
+    /// map relative values (0 to 1) to data values
+    pub fn axis_to_data(&self, v: f64) -> f64 {
+        match self.axis_type {
+            AxisType::Lin => self.range.0 + v * (self.range.1 - self.range.0),
+            AxisType::Log => self.range.0 * (self.range.1 / self.range.0).powf(v),
+        }
+    }
+
     pub fn linear1(range: (f64, f64)) -> Self {
         Self {
             direction: AxisDirection::Bottom,
