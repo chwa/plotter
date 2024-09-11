@@ -21,13 +21,12 @@ impl Plot {
         cx.paint().unwrap();
 
         let h_sum: f64 = self.axes.iter().map(|(_, h)| h).sum();
-        println!("plot.draw()");
 
         let mut y = rect.y();
         for (ax, h) in self.axes.iter() {
             println!("ax {y}");
             let row_height_px = (*h / h_sum * rect.height()).round();
-            ax.borrow_mut().draw(
+            ax.borrow().draw(
                 cx,
                 gtk::cairo::Rectangle::new(rect.x(), y, rect.width(), row_height_px),
             );

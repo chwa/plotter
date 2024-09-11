@@ -191,7 +191,7 @@ impl Axes {
 
     /// Draw to a Cairo context
     pub fn draw(
-        &mut self,
+        &self,
         cx: &Context,
         // pixel coordinates for the full Axes area (including margins):
         rect: gtk::cairo::Rectangle,
