@@ -7,3 +7,4 @@ edition = "2021"
 cairo-rs = { version = "0.20.1", features = ["svg"] }
 gtk = { version = "0.9.1", package = "gtk4", features = ["v4_14"] }
 rand = "0.8.5"
+

@@ -107,10 +107,14 @@ pub mod demo {
 
     fn example2(axes: &mut Axes) {
         let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
-        let signal_a: Vec<_> =
-            xs.iter().map(|x| ((0.5 * x).powf(2.0)).sin() / (0.5 + x.abs())).collect();
-        let signal_sinc: Vec<_> =
-            xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
+        let signal_a: Vec<_> = xs
+            .iter()
+            .map(|x| ((0.5 * x).powf(2.0)).sin() / (0.5 + x.abs()))
+            .collect();
+        let signal_sinc: Vec<_> = xs
+            .iter()
+            .map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x })
+            .collect();
 
         axes.add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_a).collect(),
@@ -124,7 +128,10 @@ pub mod demo {
 
     pub fn build_ui(app: &gtk::Application) {
         let darea = Rc::new(RefCell::new(
-            gtk::DrawingArea::builder().content_height(500).content_width(800).build(),
+            gtk::DrawingArea::builder()
+                .content_height(500)
+                .content_width(800)
+                .build(),
         ));
 
         struct SharedState {
@@ -155,7 +162,6 @@ pub mod demo {
             );
 
             let rect = st.borrow().current_rect;
-            dbg!(rect);
             st.borrow_mut().plot.draw(cx, rect);
         });
 

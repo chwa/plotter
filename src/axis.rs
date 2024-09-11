@@ -1,5 +1,5 @@
 use crate::cairo_utils::{text_aligned, PixelContext, TextPos};
-use crate::locator::{LinLocator, Locator};
+use crate::locator::{LinLocator, Locator, LogLocator};
 
 #[derive(Clone, Copy)]
 enum AxisDirection {
@@ -42,10 +42,10 @@ impl Axis {
     pub fn linear1(range: (f64, f64)) -> Self {
         Self {
             direction: AxisDirection::Bottom,
-            axis_type: AxisType::Lin,
+            axis_type: AxisType::Log,
             range,
             label: Some(String::from("Horizontal axis [units]")),
-            locator: Box::new(LinLocator::new(0.025)),
+            locator: Box::new(LogLocator::default()),
         }
     }
 
@@ -136,8 +136,7 @@ impl Axis {
         let start_point = cx.current_point().unwrap();
 
         for t in ticks {
-            let t_01 = (t - self.range.0) / (self.range.1 - self.range.0);
-
+            let t_01 = self.data_to_axis(t);
             let text = format!("{:.prec$}", t, prec = decimals);
 
             cx.move_to(start_point.0, start_point.1);

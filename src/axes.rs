@@ -308,12 +308,16 @@ pub mod demo {
     }
 
     fn example_signals(axes: &mut Axes) {
-        let xs: Vec<_> = (-250i32..=250).map(|x| x as f64 * 0.01 * PI).collect();
-        let signal_sin: Vec<_> = xs.iter().map(|x| x.sin()).collect();
-        let signal_a: Vec<_> =
-            xs.iter().map(|x| ((0.5 * x).powf(2.0)).sin() / (0.5 + x.abs())).collect();
-        let signal_sinc: Vec<_> =
-            xs.iter().map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x }).collect();
+        let xs: Vec<_> = (5i32..=5000).map(|x| x as f64 * 0.01 * PI).collect();
+        let signal_sin: Vec<_> = xs.iter().map(|x| x.sin() + 1.2).collect();
+        let signal_a: Vec<_> = xs
+            .iter()
+            .map(|x| ((0.5 * x).powf(2.0)).sin() / (0.5 + x.abs()) + 1.2)
+            .collect();
+        let signal_sinc: Vec<_> = xs
+            .iter()
+            .map(|x| if *x == 0.0 { 1.0 } else { x.sin() / x + 1.2 })
+            .collect();
 
         axes.add_trace(Trace::new(
             std::iter::zip(xs.clone(), signal_sin).collect(),
@@ -339,7 +343,10 @@ pub mod demo {
 
     fn build_ui(app: &gtk::Application) {
         let darea = Rc::new(RefCell::new(
-            gtk::DrawingArea::builder().content_height(500).content_width(800).build(),
+            gtk::DrawingArea::builder()
+                .content_height(500)
+                .content_width(800)
+                .build(),
         ));
 
         struct SharedState {
@@ -352,7 +359,7 @@ pub mod demo {
 
         let state = Rc::new(RefCell::new(SharedState {
             axes: Axes::new(Extents {
-                xmin: -2.0 * PI,
+                xmin: 0.01,
                 xmax: 2.0 * PI,
                 ymin: -1.1,
                 ymax: 1.1,
@@ -378,6 +385,12 @@ pub mod demo {
             st.borrow_mut().axes.draw(cx, rect);
         });
 
+        example_signals(&mut state.borrow_mut().axes);
+        {
+            state.borrow_mut().axes.zoom_fit();
+            export_svg(&mut state.borrow_mut().axes);
+        }
+
         // Key event controller
         let key = gtk::EventControllerKey::new();
         let da = darea.clone();
@@ -395,7 +408,10 @@ pub mod demo {
         let motion = gtk::EventControllerMotion::new();
         let st = state.clone();
         motion.connect_motion(move |_, x, y| {
-            let cursor = st.borrow().axes.cursor_position(st.borrow().current_rect, x, y);
+            let cursor = st
+                .borrow()
+                .axes
+                .cursor_position(st.borrow().current_rect, x, y);
             st.borrow_mut().cursor = cursor;
         });
         darea.borrow().add_controller(motion);
@@ -418,8 +434,6 @@ pub mod demo {
             gtk::glib::Propagation::Stop
         });
         darea.borrow().add_controller(zoom);
-
-        example_signals(&mut state.borrow_mut().axes);
 
         let window = gtk::ApplicationWindow::builder()
             .application(app)

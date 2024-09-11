@@ -1,22 +1,29 @@
 
-Plot object
-- multiple subplots/rows with shared x axis
+
+Plot
+- holds all non-GUI state: Axes, Axis, Traces (via Arc), ...
+- does *not* hold window size, cursor position, etc.
+- draw method to draw to cairo context
+- methods to query objects/data coordinates for given device coordinatees
+  (for zooming/scrolling the Axes, selecting Trace etc.)
+- zoom_fit/zoom_at/zoom_rect methods for changing the view
 -
 
 
-Graphics elements:
-- Axes with primary/secondary x/y axis (with labels), chart background, grid, Title
-    - Cairo clip for drawing on the chart area only
-    - Axis
-    - Grid
-- Legend
-- Trace?
-- Cursor that snaps to all elements, selection on click?
-- Cursor x/y coordinates
-- Trace annotation/marker
-- Scrollbar?
+PlotWidget (Component?)
+- Holds the DrawingArea (or inherits from it?)
+- Receives mouse/key events and calls Plot methods to query/update state etc.
+-
+-
 
-all have a draw(&self, &cx) method
+
+Things to add:
+- legend
+- scrollbar?
+- snapping cursor
+- trace annotation/value marker
+- delta (a-b) marker
+
 
 ```rust
 
@@ -34,19 +41,3 @@ plt.row(1).plot(wfm, Some("Label"));
 ```
 
 
-
-- Plot:
-  - title
-  - collection of axis
-  - grid
-  - collection of traces
-  - collection of annotations/markers?
-
-- axis:
-  - rectangle in pixel coordinates (or position/start/stop to define a horiz/vert line)
-  - 4 orientations (place on any edge of the chart)
-  - label (optional)
-  - lin/log
-  - normal/inverted
-  - major ticker (with labels)
-  - minor ticker (optional)

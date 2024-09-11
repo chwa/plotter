@@ -61,12 +61,60 @@ impl Locator for LinLocator {
         let nsteps_major = ((range.1 - major_start) / major_step) as i32 + 1;
         let nsteps_minor = ((range.1 - minor_start) / minor_step) as i32 + 1;
 
-        let ticks_major: Vec<_> =
-            (0..nsteps_major).map(move |x| major_start + x as f64 * major_step).collect();
+        let ticks_major: Vec<_> = (0..nsteps_major)
+            .map(move |x| major_start + x as f64 * major_step)
+            .collect();
         let ticks_minor = (0..nsteps_minor)
             .map(move |x| minor_start + x as f64 * minor_step)
-            .filter(|x| !ticks_major.iter().any(|m| ((m - x) / (x + 1e-33)).abs() < 1e-12)) // TODO FIXME
+            .filter(|x| {
+                !ticks_major
+                    .iter()
+                    .any(|m| ((m - x) / (x + 1e-33)).abs() < 1e-12)
+            }) // TODO FIXME
             .collect();
+        (ticks_major, ticks_minor, decimals)
+    }
+}
+
+pub struct LogLocator {}
+
+impl Default for LogLocator {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+impl Locator for LogLocator {
+    fn get_ticks(
+        &self,
+        range: (f64, f64),
+        min_spacing: Option<f64>,
+    ) -> (Vec<f64>, Vec<f64>, usize) {
+        let decades = (range.1 / range.0).log10();
+
+        let mut exp = range.0.log10().floor() as i32;
+        let mut mant = (range.0 / 10.0_f64.powi(exp)).ceil() as i32;
+
+        let mut ticks_major: Vec<f64> = Vec::new();
+        let mut ticks_minor: Vec<f64> = Vec::new();
+
+        while mant as f64 * 10.0_f64.powi(exp) <= range.1 {
+            if mant == 10 {
+                mant = 1;
+                exp += 1;
+            }
+
+            if mant == 1 {
+                ticks_major.push(10.0_f64.powi(exp));
+            } else {
+                ticks_minor.push(mant as f64 * 10.0_f64.powi(exp));
+            }
+
+            mant += 1;
+        }
+
+        let decimals = 1;
+
         (ticks_major, ticks_minor, decimals)
     }
 }
