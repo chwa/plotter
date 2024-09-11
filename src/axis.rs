@@ -59,13 +59,23 @@ impl Axis {
         }
     }
 
-    pub fn zoom_at(&mut self, x: f64, scale: f64) {
-        let width = self.range.1 - self.range.0;
-        let x_01 = (x - self.range.0) / width;
-        let new_width = scale * width;
+    pub fn zoom_at(&mut self, x_01: f64, scale: f64) {
+        let new_width = scale * (self.range.1 - self.range.0);
+        let x_data = self.axis_to_data(x_01);
 
-        self.range.0 = x - x_01 * new_width;
-        self.range.1 = x + (1.0 - x_01) * new_width;
+        match self.axis_type {
+            AxisType::Lin => {
+                self.range.0 = x_data - x_01 * new_width;
+                self.range.1 = x_data + (1.0 - x_01) * new_width;
+            }
+            AxisType::Log => {
+                let left = self.axis_to_data((1.0 - scale) * x_01);
+                let right = self.axis_to_data(1.0 + (scale - 1.0) * (1.0 - x_01));
+
+                self.range.0 = left;
+                self.range.1 = right;
+            }
+        }
     }
 
     pub fn draw(&self, cx: &gtk::cairo::Context, start_pos: (f64, f64), length: f64) {

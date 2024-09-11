@@ -138,15 +138,12 @@ impl Axes {
         let x_01 = (x - rect.x() - self.margins.left) / chart_width;
         let y_01 = (y - rect.y() - self.margins.top) / chart_height;
 
-        let data_x = self.primary_x.axis_to_data(x_01);
-        let data_y = self.primary_y.axis_to_data(1.0 - y_01);
-
         if 0.0 <= x_01 && x_01 <= 1.0 && 0.0 <= y_01 && y_01 <= 1.0 {
-            AxesCursorPosition::Chart(data_x, data_y)
+            AxesCursorPosition::Chart(x_01, y_01)
         } else if x_01 < 0.0 && 0.0 <= y_01 && y_01 <= 1.0 {
-            AxesCursorPosition::YAxis(data_y)
+            AxesCursorPosition::YAxis(y_01)
         } else if y_01 > 1.0 && 0.0 <= x_01 && x_01 <= 1.0 {
-            AxesCursorPosition::XAxis(data_x)
+            AxesCursorPosition::XAxis(x_01)
         } else {
             AxesCursorPosition::None
         }
@@ -180,7 +177,7 @@ impl Axes {
         match position {
             AxesCursorPosition::Chart(x, y) => {
                 self.primary_x.zoom_at(x, scale);
-                self.primary_y.zoom_at(y, scale);
+                self.primary_y.zoom_at(1.0 - y, scale);
             }
             AxesCursorPosition::XAxis(x) => {
                 self.primary_x.zoom_at(x, scale);
@@ -263,35 +260,6 @@ impl Axes {
         cx.set_source_rgb(0.0, 0.0, 0.0);
         PixelContext::new(cx).rectangle(ll.0, ll.1, width, -height);
         cx.stroke().unwrap();
-    }
-
-    /// Set the cairo transformation matrix to plot in data coordinates
-    fn transform_data(
-        &self,
-        cx: &Context,
-        // pixel coordinates for the full Axes area (including margins):
-        rect: gtk::cairo::Rectangle,
-    ) {
-        // physical size of the chart area:
-        let width = rect.width() - self.margins.left - self.margins.right;
-        let height = rect.height() - self.margins.bottom - self.margins.top;
-
-        let scale_width = width / (self.primary_x.range.1 - self.primary_x.range.0);
-        let scale_height = height / (self.primary_y.range.0 - self.primary_y.range.1);
-
-        let origin = (
-            rect.x() + self.margins.left - self.primary_x.range.0 * scale_width,
-            rect.y() + rect.height() - self.margins.bottom - self.primary_y.range.0 * scale_height,
-        );
-
-        cx.transform(Matrix::new(
-            scale_width,
-            0.0,
-            0.0,
-            scale_height,
-            origin.0,
-            origin.1,
-        ));
     }
 }
 
