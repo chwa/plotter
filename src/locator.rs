@@ -88,10 +88,8 @@ impl Locator for LogLocator {
     fn get_ticks(
         &self,
         range: (f64, f64),
-        min_spacing: Option<f64>,
+        _min_spacing: Option<f64>,
     ) -> (Vec<f64>, Vec<f64>, usize) {
-        let decades = (range.1 / range.0).log10();
-
         let mut exp = range.0.log10().floor() as i32;
         let mut mant = (range.0 / 10.0_f64.powi(exp)).ceil() as i32;
 

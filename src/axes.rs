@@ -1,6 +1,9 @@
-use gtk::cairo::{Context, Matrix};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use crate::axis::Axis;
+use gtk::cairo::Context;
+
+use crate::axis::{Axis, AxisPlacement, AxisType};
 use crate::cairo_utils::PixelContext;
 use crate::grid::Grid;
 
@@ -23,43 +26,10 @@ impl Default for Margins {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Extents {
-    pub xmin: f64,
-    pub xmax: f64,
-    pub ymin: f64,
-    pub ymax: f64,
-}
-
-impl Extents {
-    pub fn shift(&mut self, dx: f64, dy: f64) {
-        self.xmin += dx;
-        self.xmax += dx;
-        self.ymin += dy;
-        self.ymax += dy;
-    }
-
-    pub fn zoom_at(&mut self, pos_x: f64, pos_y: f64, scale: f64) {
-        let (pos_x, pos_y) = self.unit_to_data(pos_x, pos_y);
-
-        self.xmin = pos_x - (pos_x - self.xmin) * scale;
-        self.xmax = pos_x - (pos_x - self.xmax) * scale;
-
-        self.ymin = pos_y - (pos_y - self.ymin) * scale;
-        self.ymax = pos_y - (pos_y - self.ymax) * scale;
-    }
-
-    pub fn unit_to_data(&self, x: f64, y: f64) -> (f64, f64) {
-        (
-            self.xmin + x * (self.xmax - self.xmin),
-            self.ymin + y * (self.ymax - self.ymin),
-        )
-    }
-}
-
 pub struct Trace {
     pub values: Vec<(f64, f64)>,
     pub bbox: gtk::cairo::Rectangle,
+    #[allow(dead_code)]
     pub name: String,
 }
 
@@ -92,16 +62,81 @@ impl Trace {
             gtk::cairo::Rectangle::new(xmin, ymin, xmax - xmin, ymax - ymin)
         }
     }
+
+    pub fn nearest_point(
+        &self,
+        t: f64,
+        y: f64,
+        tradius: f64,
+        yradius: f64,
+    ) -> Option<(f64, f64, f64)> {
+        // TODO: for log scale, transform values first before finding closest point
+        // or change the x, y arguments to this function to be relative (window) coords?
+
+        let segment_start = self
+            .values
+            .partition_point(|(x, _)| *x < t - tradius)
+            .saturating_sub(2);
+        let segment_end =
+            (self.values.partition_point(|(x, _)| *x < t + tradius) + 2).min(self.values.len());
+
+        let values_norm: Vec<_> = self.values[segment_start..segment_end]
+            .iter()
+            .map(|(t, y)| (t / tradius, y / yradius))
+            .collect();
+
+        // normalized query point
+        let t_norm = t / tradius;
+        let y_norm = y / yradius;
+
+        let distances: Vec<_> = self.values[segment_start..segment_end]
+            .windows(2)
+            .map(|s| {
+                // normalized start point and segment vector:
+                let start_x = s[0].0 / tradius;
+                let start_y = s[0].1 / yradius;
+                let dx = (s[1].0 - s[0].0) / tradius;
+                let dy = (s[1].1 - s[0].1) / yradius;
+
+                // length squared of segment:
+                let l2 = dx * dx + dy * dy;
+
+                // normalized projection onto the segment
+                // (value between 0 and 1 means the projection lies on the segment)
+                let proj = ((t_norm - start_x) * dx + (y_norm - start_y) * dy) / l2;
+                let proj = proj.clamp(0.0, 1.0);
+
+                let nearest_x = start_x + proj * dx;
+                let nearest_y = start_y + proj * dy;
+
+                let dist_x = nearest_x - t_norm;
+                let dist_y = nearest_y - y_norm;
+
+                let distance = dist_x * dist_x + dist_y * dist_y;
+
+                let nearest_x = nearest_x * tradius;
+                let nearest_y = nearest_y * yradius;
+
+                (distance, nearest_x, nearest_y)
+            })
+            .collect();
+
+        distances
+            .into_iter()
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .filter(|(d, _, _)| *d < 1.0)
+    }
 }
 
 pub struct Axes {
-    primary_x: Axis,
-    primary_y: Axis,
-    grid: Grid,
+    pub primary_x: Rc<RefCell<Axis>>,
+    pub primary_y: Rc<RefCell<Axis>>,
+    pub grid: Grid,
 
-    margins: Margins,
+    pub margins: Margins,
 
-    traces: Vec<Trace>,
+    pub traces: Vec<Trace>,
+    pub cursor: Option<(f64, f64)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -113,14 +148,80 @@ pub enum AxesCursorPosition {
 }
 
 impl Axes {
-    pub fn new(e: Extents) -> Self {
+    pub fn new(primary_x: Rc<RefCell<Axis>>, primary_y: Rc<RefCell<Axis>>) -> Self {
         Self {
-            primary_x: Axis::linear1((e.xmin, e.xmax)),
-            primary_y: Axis::vertical((e.ymin, e.ymax)),
+            primary_x,
+            primary_y,
             grid: Grid {},
             margins: Margins::default(),
             traces: vec![],
+            cursor: None,
         }
+    }
+
+    pub fn linear(shared_x: Option<Rc<RefCell<Axis>>>) -> Rc<RefCell<Self>> {
+        let primary_x = match shared_x {
+            Some(axis) => axis,
+            None => Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Bottom,
+                AxisType::Lin,
+                (-1.0, 1.0),
+            ))),
+        };
+        Rc::new(RefCell::new(Self {
+            primary_x,
+            primary_y: Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Left,
+                AxisType::Lin,
+                (0.0, 1.0),
+            ))),
+            grid: Grid {},
+            margins: Margins::default(),
+            traces: vec![],
+            cursor: None,
+        }))
+    }
+
+    pub fn semilogx() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            primary_x: Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Bottom,
+                AxisType::Log,
+                (0.1, 1.0),
+            ))),
+            primary_y: Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Left,
+                AxisType::Lin,
+                (0.0, 1.0),
+            ))),
+            grid: Grid {},
+            margins: Margins::default(),
+            traces: vec![],
+            cursor: None,
+        }))
+    }
+
+    pub fn semilogy(shared_x: Option<Rc<RefCell<Axis>>>) -> Rc<RefCell<Self>> {
+        let primary_x = match shared_x {
+            Some(axis) => axis,
+            None => Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Bottom,
+                AxisType::Lin,
+                (-1.0, 1.0),
+            ))),
+        };
+        Rc::new(RefCell::new(Self {
+            primary_x,
+            primary_y: Rc::new(RefCell::new(Axis::new(
+                AxisPlacement::Left,
+                AxisType::Log,
+                (0.1, 1.0),
+            ))),
+            grid: Grid {},
+            margins: Margins::default(),
+            traces: vec![],
+            cursor: None,
+        }))
     }
 
     pub fn add_trace(&mut self, t: Trace) {
@@ -149,6 +250,37 @@ impl Axes {
         }
     }
 
+    pub fn snap_cursor(&self, pos: AxesCursorPosition) -> Option<(f64, f64)> {
+        match pos {
+            AxesCursorPosition::Chart(x, y) => {
+                let data_x = self.primary_x.borrow().axis_to_data(x);
+                let data_y = self.primary_y.borrow().axis_to_data(1.0 - y);
+                let xrange = self.primary_x.borrow().range;
+                let yrange = self.primary_y.borrow().range;
+                let result = self
+                    .traces
+                    .iter()
+                    .map(|t| {
+                        t.nearest_point(
+                            data_x,
+                            data_y,
+                            (xrange.1 - xrange.0) / 20.0,
+                            (yrange.1 - yrange.0) / 10.0,
+                        )
+                    })
+                    .flatten()
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+                    .map(|(_, x, y)| (x, y));
+
+                if let Some((resx, resy)) = result {
+                    // println!("Snap {data_x:.3} {data_y:.3} to {resx:.3} {resy:.3}");
+                }
+                result
+            }
+            _ => None,
+        }
+    }
+
     pub fn zoom_fit(&mut self) {
         if self.traces.len() > 0 {
             let (xmin, xmax, ymin, ymax) = self.traces.iter().fold(
@@ -168,22 +300,22 @@ impl Axes {
                     )
                 },
             );
-            self.primary_x.range = (xmin, xmax);
-            self.primary_y.range = (ymin, ymax);
+            self.primary_x.borrow_mut().range = (xmin, xmax);
+            self.primary_y.borrow_mut().range = (ymin, ymax);
         }
     }
 
     pub fn zoom_at(&mut self, position: AxesCursorPosition, scale: f64) {
         match position {
             AxesCursorPosition::Chart(x, y) => {
-                self.primary_x.zoom_at(x, scale);
-                self.primary_y.zoom_at(1.0 - y, scale);
+                self.primary_x.borrow_mut().zoom_at(x, scale);
+                self.primary_y.borrow_mut().zoom_at(1.0 - y, scale);
             }
             AxesCursorPosition::XAxis(x) => {
-                self.primary_x.zoom_at(x, scale);
+                self.primary_x.borrow_mut().zoom_at(x, scale);
             }
             AxesCursorPosition::YAxis(y) => {
-                self.primary_y.zoom_at(y, scale);
+                self.primary_y.borrow_mut().zoom_at(1.0 - y, scale);
             }
             AxesCursorPosition::None => {}
         }
@@ -202,8 +334,8 @@ impl Axes {
         );
         let width = rect.width() - self.margins.left - self.margins.right;
         let height = rect.height() - self.margins.bottom - self.margins.top;
-        self.primary_x.draw(cx, ll, width);
-        self.primary_y.draw(cx, ll, height);
+        self.primary_x.borrow().draw(cx, ll, width);
+        self.primary_y.borrow().draw(cx, ll, height);
 
         self.grid.draw(
             cx,
@@ -213,8 +345,8 @@ impl Axes {
                 width,
                 height,
             ),
-            &self.primary_x,
-            &self.primary_y,
+            &self.primary_x.borrow(),
+            &self.primary_y.borrow(),
         );
 
         if false {
@@ -235,16 +367,18 @@ impl Axes {
         for (i, t) in self.traces.iter().enumerate() {
             if t.values.len() > 0 {
                 cx.move_to(
-                    self.margins.left + width * self.primary_x.data_to_axis(t.values[0].0),
+                    self.margins.left + width * self.primary_x.borrow().data_to_axis(t.values[0].0),
                     rect.y()
                         + self.margins.top
-                        + height * (1.0 - self.primary_y.data_to_axis(t.values[0].1)),
+                        + height * (1.0 - self.primary_y.borrow().data_to_axis(t.values[0].1)),
                 );
             }
             for (x, y) in &t.values[1..] {
                 cx.line_to(
-                    self.margins.left + width * self.primary_x.data_to_axis(*x),
-                    rect.y() + self.margins.top + height * (1.0 - self.primary_y.data_to_axis(*y)),
+                    self.margins.left + width * self.primary_x.borrow().data_to_axis(*x),
+                    rect.y()
+                        + self.margins.top
+                        + height * (1.0 - self.primary_y.borrow().data_to_axis(*y)),
                 );
             }
 
@@ -255,6 +389,21 @@ impl Axes {
         }
         cx.reset_clip();
 
+        cx.set_line_width(1.0);
+        cx.set_source_rgb(0.0, 0.0, 0.0);
+
+        if let Some((x, y)) = self.cursor {
+            let px_x = self.margins.left + width * self.primary_x.borrow().data_to_axis(x);
+            let px_y = rect.y()
+                + self.margins.top
+                + height * (1.0 - self.primary_y.borrow().data_to_axis(y));
+            cx.move_to(px_x - 5.0, px_y);
+            cx.rel_line_to(10.0, 0.0);
+            cx.move_to(px_x, px_y - 5.0);
+            cx.rel_line_to(0.0, 10.0);
+            cx.stroke().unwrap()
+        }
+
         // chart area outline
         cx.set_line_width(1.0);
         cx.set_source_rgb(0.0, 0.0, 0.0);
@@ -262,7 +411,7 @@ impl Axes {
         cx.stroke().unwrap();
     }
 }
-
+/*
 pub mod demo {
     use super::*;
     use gtk::{cairo::Rectangle, prelude::*};
@@ -326,12 +475,7 @@ pub mod demo {
         }
 
         let state = Rc::new(RefCell::new(SharedState {
-            axes: Axes::new(Extents {
-                xmin: 0.01,
-                xmax: 2.0 * PI,
-                ymin: -1.1,
-                ymax: 1.1,
-            }),
+            axes: Axes::linear(None),
             current_rect: Rectangle::new(0.0, 0.0, 1.0, 1.0),
             cursor: AxesCursorPosition::None,
         }));
@@ -421,3 +565,4 @@ pub mod demo {
         window.present();
     }
 }
+*/

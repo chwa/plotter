@@ -12,6 +12,7 @@ Plot
 
 PlotWidget (Component?)
 - Holds the DrawingArea (or inherits from it?)
+  - draw function calls plot.draw() -> needs shared access to all state
 - Receives mouse/key events and calls Plot methods to query/update state etc.
 -
 -

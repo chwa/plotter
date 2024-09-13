@@ -26,9 +26,6 @@ impl Grid {
             .locator
             .get_ticks(primary_y.range, Some(50.0 / rect.height()));
 
-        let x_range = primary_x.range;
-        let y_range = primary_y.range;
-
         // minor
         cx.set_source_rgb(0.925, 0.925, 0.925);
         for t in x_ticks_minor {

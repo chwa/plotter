@@ -2,20 +2,21 @@ use crate::cairo_utils::{text_aligned, PixelContext, TextPos};
 use crate::locator::{LinLocator, Locator, LogLocator};
 
 #[derive(Clone, Copy)]
-enum AxisDirection {
+pub enum AxisPlacement {
     Left,
     Right,
     Bottom,
     Top,
 }
 
-enum AxisType {
+#[derive(Clone, Copy)]
+pub enum AxisType {
     Lin,
     Log,
 }
 
 pub struct Axis {
-    direction: AxisDirection,
+    placement: AxisPlacement,
     axis_type: AxisType,
     pub range: (f64, f64),
     label: Option<String>,
@@ -39,23 +40,16 @@ impl Axis {
         }
     }
 
-    pub fn linear1(range: (f64, f64)) -> Self {
+    pub fn new(place: AxisPlacement, axis_type: AxisType, range: (f64, f64)) -> Self {
         Self {
-            direction: AxisDirection::Bottom,
-            axis_type: AxisType::Log,
+            placement: place,
+            axis_type,
             range,
-            label: Some(String::from("Horizontal axis [units]")),
-            locator: Box::new(LogLocator::default()),
-        }
-    }
-
-    pub fn vertical(range: (f64, f64)) -> Self {
-        Self {
-            direction: AxisDirection::Left,
-            axis_type: AxisType::Lin,
-            range,
-            label: Some(String::from("Vertical axis [units]")),
-            locator: Box::new(LinLocator::new(0.025)),
+            label: Some(String::from("<please edit>")),
+            locator: match axis_type {
+                AxisType::Lin => Box::new(LinLocator::default()),
+                AxisType::Log => Box::new(LogLocator::default()),
+            },
         }
     }
 
@@ -83,8 +77,8 @@ impl Axis {
         cx.set_line_width(1.0);
 
         let (ticks_major, ticks_minor, decimals);
-        match self.direction {
-            AxisDirection::Left | AxisDirection::Right => {
+        match self.placement {
+            AxisPlacement::Left | AxisPlacement::Right => {
                 (ticks_major, ticks_minor, decimals) =
                     self.locator.get_ticks(self.range, Some(50.0 / length));
             }
@@ -95,14 +89,18 @@ impl Axis {
         }
 
         PixelContext::new(cx).move_to(start_pos.0, start_pos.1);
-        self.draw_ticks(cx, length, ticks_major, 8.0, true, decimals);
+        let prec = match self.axis_type {
+            AxisType::Lin => Some(decimals),
+            AxisType::Log => None,
+        };
+        self.draw_ticks(cx, length, ticks_major, 8.0, true, prec);
 
         PixelContext::new(cx).move_to(start_pos.0, start_pos.1);
-        self.draw_ticks(cx, length, ticks_minor, 3.0, false, 0);
+        self.draw_ticks(cx, length, ticks_minor, 3.0, false, None);
 
         if let Some(text) = &self.label {
-            match self.direction {
-                AxisDirection::Left => {
+            match self.placement {
+                AxisPlacement::Left => {
                     text_aligned(
                         cx,
                         (start_pos.0, start_pos.1 - length / 2.0),
@@ -114,8 +112,8 @@ impl Axis {
                         true,
                     );
                 }
-                AxisDirection::Right => {}
-                AxisDirection::Bottom => {
+                AxisPlacement::Right => {}
+                AxisPlacement::Bottom => {
                     text_aligned(
                         cx,
                         (start_pos.0 + length / 2.0, start_pos.1),
@@ -127,7 +125,7 @@ impl Axis {
                         true,
                     );
                 }
-                AxisDirection::Top => {}
+                AxisPlacement::Top => {}
             }
         }
         PixelContext::new(cx).move_to(start_pos.0, start_pos.1);
@@ -140,19 +138,35 @@ impl Axis {
         ticks: Vec<f64>,
         tick_size: f64,
         with_labels: bool,
-        decimals: usize,
+        decimals: Option<usize>,
     ) {
         // save start position
         let start_point = cx.current_point().unwrap();
 
         for t in ticks {
             let t_01 = self.data_to_axis(t);
-            let text = format!("{:.prec$}", t, prec = decimals);
+
+            let text = match decimals {
+                Some(precision) => {
+                    if precision > 4 {
+                        format!("{t:.1e}")
+                    } else {
+                        format!("{:.prec$}", t, prec = precision)
+                    }
+                }
+                None => {
+                    if t.log10().abs() > 3.0 {
+                        format!("{t:e}")
+                    } else {
+                        format!("{t}")
+                    }
+                }
+            };
 
             cx.move_to(start_point.0, start_point.1);
 
-            match self.direction {
-                AxisDirection::Left => {
+            match self.placement {
+                AxisPlacement::Left => {
                     PixelContext::new(cx).rel_move_to(0.0, -t_01 * length);
                     PixelContext::new(cx).rel_line_to(-tick_size, 0.0);
                     if with_labels {
@@ -168,7 +182,7 @@ impl Axis {
                         );
                     }
                 }
-                AxisDirection::Right => {
+                AxisPlacement::Right => {
                     PixelContext::new(cx).rel_move_to(0.0, -t_01 * length);
                     PixelContext::new(cx).rel_line_to(tick_size, 0.0);
                     if with_labels {
@@ -184,7 +198,7 @@ impl Axis {
                         );
                     }
                 }
-                AxisDirection::Top => {
+                AxisPlacement::Top => {
                     PixelContext::new(cx).rel_move_to(t_01 * length, 0.0);
                     PixelContext::new(cx).rel_line_to(0.0, -tick_size);
                     if with_labels {
@@ -200,7 +214,7 @@ impl Axis {
                         );
                     }
                 }
-                AxisDirection::Bottom => {
+                AxisPlacement::Bottom => {
                     PixelContext::new(cx).rel_move_to(t_01 * length, 0.0);
                     PixelContext::new(cx).rel_line_to(0.0, tick_size);
                     if with_labels {
