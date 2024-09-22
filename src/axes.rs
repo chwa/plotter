@@ -73,10 +73,8 @@ impl Trace {
         // TODO: for log scale, transform values first before finding closest point
         // or change the x, y arguments to this function to be relative (window) coords?
 
-        let segment_start = self
-            .values
-            .partition_point(|(x, _)| *x < t - tradius)
-            .saturating_sub(2);
+        let segment_start =
+            self.values.partition_point(|(x, _)| *x < t - tradius).saturating_sub(2);
         let segment_end =
             (self.values.partition_point(|(x, _)| *x < t + tradius) + 2).min(self.values.len());
 
@@ -397,11 +395,16 @@ impl Axes {
             let px_y = rect.y()
                 + self.margins.top
                 + height * (1.0 - self.primary_y.borrow().data_to_axis(y));
-            cx.move_to(px_x - 5.0, px_y);
-            cx.rel_line_to(10.0, 0.0);
-            cx.move_to(px_x, px_y - 5.0);
-            cx.rel_line_to(0.0, 10.0);
-            cx.stroke().unwrap()
+
+            cx.set_dash(&[5.0], 0.0);
+            // vertical line
+            PixelContext::new(cx).move_to(px_x, rect.y() + self.margins.top);
+            PixelContext::new(cx).line_to(px_x, rect.y() + rect.height() - self.margins.bottom);
+            // horizontal line
+            PixelContext::new(cx).move_to(self.margins.left, px_y);
+            PixelContext::new(cx).line_to(rect.width() - self.margins.right, px_y);
+            cx.stroke().unwrap();
+            cx.set_dash(&[], 0.0);
         }
 
         // chart area outline
