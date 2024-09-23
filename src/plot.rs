@@ -47,7 +47,7 @@ impl Plot {
         self.draw(&mut cx, gtk::cairo::Rectangle::new(0.0, 0.0, 800.0, 500.0));
     }
 
-    fn add_axes(&mut self, ax: Rc<RefCell<Axes>>) {
+    pub fn add_axes(&mut self, ax: Rc<RefCell<Axes>>) {
         self.axes.push((ax, 1.0));
     }
 
@@ -130,10 +130,7 @@ pub mod demo {
 
     pub fn build_ui(app: &gtk::Application) {
         let darea = Rc::new(RefCell::new(
-            gtk::DrawingArea::builder()
-                .content_height(500)
-                .content_width(800)
-                .build(),
+            gtk::DrawingArea::builder().content_height(500).content_width(800).build(),
         ));
 
         struct SharedState {
@@ -188,10 +185,7 @@ pub mod demo {
         let da = darea.clone();
         let st = state.clone();
         motion.connect_motion(move |_, x, y| {
-            let cursor = st
-                .borrow()
-                .plot
-                .cursor_position(st.borrow().current_rect, x, y);
+            let cursor = st.borrow().plot.cursor_position(st.borrow().current_rect, x, y);
 
             if let PlotCursorPosition::Axes(i, axpos) = &cursor {
                 let xy = st.borrow().plot.axes[*i].0.borrow().snap_cursor(*axpos);
