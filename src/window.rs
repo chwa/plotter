@@ -3,29 +3,33 @@ use adw::prelude::*;
 use gtk::prelude::{BoxExt, ButtonExt, GtkWindowExt, OrientableExt};
 use relm4::{
     gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller, RelmApp,
-    RelmWidgetExt, SimpleComponent,
+    SimpleComponent,
 };
 
 use crate::plot_component::*;
 
 struct AppModel {
+    sidebar: bool,
     counter: u8,
-
     plot: Controller<PlotModel>,
 }
 
 #[derive(Debug)]
 enum AppMsg {
     Increment,
-    Decrement,
+    ShowSidebar,
+    HideSidebar,
 }
+
+#[derive(Debug)]
+enum AppOutput {}
 
 #[relm4::component]
 impl SimpleComponent for AppModel {
     type Init = u8;
 
     type Input = AppMsg;
-    type Output = ();
+    type Output = AppOutput;
 
     view! {
         adw::Window {
@@ -38,102 +42,50 @@ impl SimpleComponent for AppModel {
                     set_title_widget = &adw::WindowTitle {
                         set_title: "My HeaderBar",
                     },
+
+                    pack_start = &gtk::ToggleButton {
+                        set_icon_name: "dock-left",
+                        set_active: true,
+                        connect_toggled[sender] => move |btn| {
+                            let action = if btn.is_active() { AppMsg::ShowSidebar } else {AppMsg::HideSidebar};
+                            sender.input(action)
+                        },
+                    },
+
                     pack_end = &gtk::MenuButton {
-                        set_icon_name: "open-menu-symbolic",
+                        set_icon_name: "menu",
                     },
                 },
                 #[wrap(Some)]
-                set_content = &gtk::Paned {
-                    set_orientation: gtk::Orientation::Horizontal,
-                    set_hexpand: true,
-                    // set_spacing: 12,
-
+                set_content = &adw::NavigationSplitView {
+                    set_show_content: true,
+                    #[watch]
+                    set_collapsed: !model.sidebar,
                     #[wrap(Some)]
-                    set_start_child = &gtk::Box {
-                        set_orientation: gtk::Orientation::Vertical,
-                        set_vexpand: true,
-                        set_spacing: 12,
+                    set_sidebar = &adw::NavigationPage {
+                        set_title: "the sidebar",
+                        gtk::Box {
+                            set_orientation: gtk::Orientation::Vertical,
+                            set_hexpand: true,
+                            set_spacing: 12,
 
-                        gtk::Label {
-                            set_label: "asdf"
-                        }
-
-                        // #[local_ref]
-                        // avatar -> adw::Avatar,
-
-                        // model.album.widget(),
-                    },
-
-                    #[wrap(Some)]
-                    set_end_child = &gtk::Paned {
-                        set_orientation: gtk::Orientation::Vertical,
-                        set_vexpand: true,
-
-                        #[wrap(Some)]
-                        set_start_child = &gtk::Frame {
-                            gtk::Box {
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_vexpand: true,
-                                set_spacing: 12,
-
-                                append = model.plot.widget(),
-                            },
-                        },
-
-                        #[wrap(Some)]
-                        set_end_child = &gtk::Frame {
-                            gtk::Box{
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_vexpand: false,
-                                set_spacing: 12,
-
-                                gtk::Label {
-                                    set_label: "Bla"
-                                },
+                            gtk::Label {
+                                set_label: "asdf"
                             }
-                        },
-
-                    }
-
-                    // #[local_ref]
-                    // avatar -> adw::Avatar,
-
-                    // model.album.widget(),
+                        }
+                    },
+                    #[wrap(Some)]
+                    set_content = &adw::NavigationPage {
+                        set_title: "the content",
+                        gtk::Box {
+                            set_orientation: gtk::Orientation::Vertical,
+                            set_vexpand: true,
+                            set_spacing: 12,
+                            append = model.plot.widget(),
+                        }
+                    },
                 }
             }
-            // set_title: Some("Simple app"),
-            // set_default_width: 300,
-            // set_default_height: 100,
-
-            // #[name = "navigation"]
-            // adw::NavigationSplitView {
-            //     adw::NavigationPage {
-            //         set_title: "Navi title"
-            //     },
-            //     adw::NavigationPage {
-
-            //         gtk::Box {
-            //             set_orientation: gtk::Orientation::Vertical,
-            //             set_spacing: 5,
-            //             set_margin_all: 5,
-
-            //             gtk::Button {
-            //                 set_label: "Increment",
-            //                 connect_clicked => AppMsg::Increment
-            //             },
-
-            //             gtk::Button::with_label("Decrement") {
-            //                 connect_clicked => AppMsg::Decrement
-            //             },
-
-            //             gtk::Label {
-            //                 #[watch]
-            //                 set_label: &format!("Counter: {}", model.counter),
-            //                 set_margin_all: 5,
-            //             }
-            //         }
-            //     }
-            // }
         }
     }
 
@@ -148,7 +100,11 @@ impl SimpleComponent for AppModel {
                 PlotOutput::Close => AppMsg::Increment,
             });
 
-        let model = AppModel { counter, plot };
+        let model = AppModel {
+            counter,
+            plot,
+            sidebar: true,
+        };
 
         // Insert the macro code generation here
         let widgets = view_output!();
@@ -161,17 +117,14 @@ impl SimpleComponent for AppModel {
             AppMsg::Increment => {
                 self.counter = self.counter.wrapping_add(1);
             }
-            AppMsg::Decrement => {
-                self.counter = self.counter.wrapping_sub(1);
-            }
+            AppMsg::ShowSidebar => self.sidebar = true,
+            AppMsg::HideSidebar => self.sidebar = false,
         }
     }
 }
 
 pub fn main() {
-    // let app = adw::Application::builder().application_id("com.example.app").build();
-    // let app = RelmApp::from_app(app);
-    // app.run::<AppModel>(0);
-    let app = RelmApp::new("relm4.example.bla");
+    let app = RelmApp::new("com.example.bla");
+    relm4_icons::initialize_icons();
     app.run::<AppModel>(123);
 }
